@@ -1,0 +1,347 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  DRIVER
+  WAREHOUSE_STAFF
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum ShipmentStatus {
+  PENDING_PICKUP
+  PICKED_UP
+  ARRIVED_AT_WAREHOUSE
+  IN_WAREHOUSE
+  ROUTED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_DELIVERY
+}
+
+enum ExceptionType {
+  DELAYED
+  LOST
+  DAMAGED
+  WRONG_ADDRESS
+  REFUSED_DELIVERY
+  WEATHER_DELAY
+  VEHICLE_BREAKDOWN
+}
+
+enum ExceptionSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum NotificationType {
+  ORDER_CREATED
+  SHIPMENT_STARTED
+  DELIVERY_ATTEMPTED
+  DELIVERY_SUCCESSFUL
+  EXCEPTION_REPORTED
+  INVOICE_CREATED
+}
+
+enum DeliveryProofType {
+  PHOTO
+  SIGNATURE
+  VIDEO
+  GEOLOCATION
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// Models
+model User {
+  user_id           Int           @id @default(autoincrement())
+  email             String        @unique
+  password_hash     String
+  name              String
+  phone             String?
+  role              UserRole      @default(CUSTOMER)
+  is_active         Boolean       @default(true)
+  warehouse_id      Int?          // Which warehouse this user belongs to (null for ADMIN, CUSTOMER)
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  warehouse         Warehouse?    @relation(fields: [warehouse_id], references: [warehouse_id])
+  orders            Order[]
+  shipments         Shipment[]    @relation("DriverShipments")
+  exceptions        ExceptionReport[]
+  notifications     Notification[]
+  deliveryProofs    DeliveryProof[]
+
+  @@index([email])
+  @@index([role])
+  @@index([warehouse_id])
+}
+
+model Warehouse {
+  warehouse_id      Int           @id @default(autoincrement())
+  name              String
+  location          String
+  city              String
+  state             String?
+  country           String?
+  capacity          Int?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  users             User[]
+  orders            Order[]       @relation("OriginWarehouse")
+  handoffsFrom      Handoff[]     @relation("FromWarehouse")
+  handoffsTo        Handoff[]     @relation("ToWarehouse")
+  currentShipments  Shipment[]    @relation("CurrentWarehouse")
+  nextStopShipments Shipment[]    @relation("NextStopWarehouse")
+
+  @@index([city])
+}
+
+model Order {
+  order_id          Int           @id @default(autoincrement())
+  order_number      String        @unique
+  user_id           Int
+
+  // Sender (person shipping the package)
+  sender_name       String
+  sender_email      String
+  sender_phone      String
+
+  // Pickup location
+  pickup_address    String
+  pickup_city       String
+  pickup_state      String?
+  pickup_country    String?
+
+  // Receiver (person receiving the package)
+  receiver_name     String
+  receiver_email    String?
+  receiver_phone    String
+
+  // Delivery location
+  delivery_address  String
+  delivery_city     String
+  delivery_state    String?
+  delivery_country  String?
+
+  // Origin warehouse (where the customer placed the order)
+  origin_warehouse_id Int
+
+  notes             String?
+  status            OrderStatus   @default(PLACED)
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  user              User          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  origin_warehouse  Warehouse     @relation("OriginWarehouse", fields: [origin_warehouse_id], references: [warehouse_id])
+  shipments         Shipment[]
+  statusHistory     OrderStatusHistory[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([origin_warehouse_id])
+  @@index([created_at])
+}
+
+model OrderStatusHistory {
+  history_id        Int           @id @default(autoincrement())
+  order_id          Int
+  old_status        OrderStatus
+  new_status        OrderStatus
+  changed_at        DateTime      @default(now())
+
+  // Relations
+  order             Order         @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
+
+  @@index([order_id])
+}
+
+model Shipment {
+  shipment_id       Int           @id @default(autoincrement())
+  shipment_number   String        @unique
+  order_id          Int
+  driver_id         Int?          // Currently assigned driver
+  weight_kg         Float?
+  items_count       Int           @default(0)
+  current_location  String?
+
+  // Warehouse tracking
+  current_warehouse_id    Int?    // Which warehouse it's currently at
+  next_stop_warehouse_id  Int?    // Manager's decision: next warehouse (null if final delivery)
+  is_final_delivery       Boolean @default(false) // true = next stop is the receiver
+
+  status            ShipmentStatus @default(PENDING_PICKUP)
+  estimated_delivery_date DateTime?
+  actual_delivery_date DateTime?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  order             Order         @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
+  driver            User?         @relation("DriverShipments", fields: [driver_id], references: [user_id], onDelete: SetNull)
+  current_warehouse Warehouse?    @relation("CurrentWarehouse", fields: [current_warehouse_id], references: [warehouse_id])
+  next_stop_warehouse Warehouse?  @relation("NextStopWarehouse", fields: [next_stop_warehouse_id], references: [warehouse_id])
+  handoffs          Handoff[]
+  deliveryProofs    DeliveryProof[]
+  statusHistory     ShipmentStatusHistory[]
+  exceptions        ExceptionReport[]
+
+  @@index([order_id])
+  @@index([driver_id])
+  @@index([status])
+  @@index([current_warehouse_id])
+  @@index([created_at])
+}
+
+model ShipmentStatusHistory {
+  history_id        Int           @id @default(autoincrement())
+  shipment_id       Int
+  old_status        ShipmentStatus
+  new_status        ShipmentStatus
+  changed_at        DateTime      @default(now())
+  change_reason     String?
+
+  // Relations
+  shipment          Shipment      @relation(fields: [shipment_id], references: [shipment_id], onDelete: Cascade)
+
+  @@index([shipment_id])
+}
+
+model Handoff {
+  handoff_id        Int           @id @default(autoincrement())
+  shipment_id       Int
+  from_warehouse_id Int
+  to_warehouse_id   Int
+  handoff_date      DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  shipment          Shipment      @relation(fields: [shipment_id], references: [shipment_id], onDelete: Cascade)
+  fromWarehouse     Warehouse     @relation("FromWarehouse", fields: [from_warehouse_id], references: [warehouse_id])
+  toWarehouse       Warehouse     @relation("ToWarehouse", fields: [to_warehouse_id], references: [warehouse_id])
+
+  @@index([shipment_id])
+  @@index([from_warehouse_id])
+  @@index([to_warehouse_id])
+}
+
+model DeliveryProof {
+  proof_id          Int           @id @default(autoincrement())
+  shipment_id       Int
+  uploaded_by_id    Int
+  proof_type        DeliveryProofType
+  file_url          String
+  verification_status VerificationStatus @default(PENDING)
+  verified_at       DateTime?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  shipment          Shipment      @relation(fields: [shipment_id], references: [shipment_id], onDelete: Cascade)
+  uploadedBy        User          @relation(fields: [uploaded_by_id], references: [user_id], onDelete: Cascade)
+
+  @@index([shipment_id])
+  @@index([uploaded_by_id])
+  @@index([verification_status])
+}
+
+model ExceptionReport {
+  exception_id      Int           @id @default(autoincrement())
+  shipment_id       Int
+  reported_by_id    Int
+  exception_type    ExceptionType
+  severity          ExceptionSeverity
+  description       String
+  resolution        String?
+  is_resolved       Boolean       @default(false)
+  resolved_at       DateTime?
+  reported_at       DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // Relations
+  shipment          Shipment      @relation(fields: [shipment_id], references: [shipment_id], onDelete: Cascade)
+  reportedBy        User          @relation(fields: [reported_by_id], references: [user_id], onDelete: Cascade)
+
+  @@index([shipment_id])
+  @@index([reported_by_id])
+  @@index([is_resolved])
+  @@index([severity])
+}
+
+model Notification {
+  notification_id   Int           @id @default(autoincrement())
+  user_id           Int
+  type              NotificationType
+  subject           String
+  message           String
+  is_read           Boolean       @default(false)
+  created_at        DateTime      @default(now())
+  read_at           DateTime?
+
+  // Relations
+  user              User          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([is_read])
+  @@index([created_at])
+}
+
+model Invoice {
+  invoice_id        Int           @id @default(autoincrement())
+  invoice_number    String        @unique
+  order_id          Int
+  sender_name       String
+  amount            Float
+  tax_amount        Float
+  total_amount      Float
+  status            InvoiceStatus @default(DRAFT)
+  issued_date       DateTime?
+  due_date          DateTime?
+  paid_date         DateTime?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  @@index([status])
+  @@index([issued_date])
+  @@index([created_at])
+}
