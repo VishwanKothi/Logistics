@@ -4,7 +4,7 @@ const deliveryProofService = {
   uploadProof: (formData) => api.post('/delivery-proofs/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
-  getShipmentProofs: (shipmentId) => api.get(`/delivery-proofs/shipment/${shipmentId}`),
+  getOrderProofs: (orderId) => api.get(`/delivery-proofs/order/${orderId}`),
   getUnverifiedProofs: () => api.get('/delivery-proofs'),
   verifyProof: (proofId) => api.patch(`/delivery-proofs/${proofId}/verify`),
 };

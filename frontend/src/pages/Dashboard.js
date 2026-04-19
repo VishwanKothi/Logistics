@@ -49,7 +49,7 @@ const Dashboard = () => {
         setStats({
           pendingOrders: allOrders.filter(o => o.status === 'PLACED').length,
           activeShipments: allShipments.length,
-          needRouting: allShipments.filter(s => s.status === 'IN_WAREHOUSE').length,
+          needRouting: allShipments.filter(s => s.status === 'PENDING_ROUTING').length,
           openExceptions: exceptionsRes.status === 'fulfilled' ? (exceptionsRes.value?.data?.length || 0) : 0,
         });
         setRecentOrders(allOrders.slice(0, 5));
@@ -60,9 +60,9 @@ const Dashboard = () => {
         ]);
         const shipments = shipmentsRes.status === 'fulfilled' ? (shipmentsRes.value?.data || []) : [];
         setStats({
-          arrived: shipments.filter(s => s.status === 'ARRIVED_AT_WAREHOUSE').length,
-          inWarehouse: shipments.filter(s => s.status === 'IN_WAREHOUSE').length,
-          readyToDispatch: shipments.filter(s => s.status === 'ROUTED').length,
+          arrived: shipments.filter(s => ['AT_ORIGIN_WAREHOUSE', 'AT_DEST_WAREHOUSE'].includes(s.status)).length,
+          inWarehouse: shipments.filter(s => ['ROUTED', 'AT_ORIGIN_WAREHOUSE', 'AT_DEST_WAREHOUSE'].includes(s.status)).length,
+          readyToDispatch: shipments.filter(s => ['ROUTED', 'AT_ORIGIN_WAREHOUSE', 'AT_DEST_WAREHOUSE'].includes(s.status)).length,
           exceptions: exceptionsRes.status === 'fulfilled' ? (exceptionsRes.value?.data?.length || 0) : 0,
         });
       } else if (role === 'DRIVER') {
@@ -73,7 +73,7 @@ const Dashboard = () => {
         const deliveries = deliveriesRes.status === 'fulfilled' ? (deliveriesRes.value?.data || []) : [];
         setStats({
           totalAssigned: deliveries.length,
-          pendingPickups: deliveries.filter(s => s.status === 'PENDING_PICKUP').length,
+          pendingPickups: deliveries.filter(s => ['PICKUP_ASSIGNED', 'TRANSIT_ASSIGNED', 'DELIVERY_ASSIGNED'].includes(s.status)).length,
           inTransit: deliveries.filter(s => ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(s.status)).length,
           issuesReported: exceptionsRes.status === 'fulfilled' ? (exceptionsRes.value?.data?.length || 0) : 0,
         });
@@ -151,7 +151,6 @@ const Dashboard = () => {
     ];
     if (role === 'WAREHOUSE_STAFF') return [
       { label: 'Warehouse', subtitle: 'Receive & dispatch', path: '/shipments' },
-      { label: 'Upload Proof', subtitle: 'Receipt photos', path: '/delivery-proofs' },
       { label: 'Report Issue', subtitle: 'Flag problems', path: '/exceptions' },
     ];
     if (role === 'DRIVER') return [

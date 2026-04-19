@@ -3,8 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import shipmentService from '../services/shipmentService';
 import warehouseService from '../services/warehouseService';
 
-const STATUS_STEPS = ['PENDING_PICKUP', 'PICKED_UP', 'ARRIVED_AT_WAREHOUSE', 'IN_WAREHOUSE', 'ROUTED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-const STATUS_LABELS = { PENDING_PICKUP: 'Pending Pickup', PICKED_UP: 'Picked Up', ARRIVED_AT_WAREHOUSE: 'Arrived at Hub', IN_WAREHOUSE: 'In Warehouse', ROUTED: 'Routed', IN_TRANSIT: 'In Transit', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered', FAILED_DELIVERY: 'Failed' };
+const STATUS_STEPS = ['PENDING_ROUTING', 'ROUTED', 'PICKUP_ASSIGNED', 'PICKED_UP', 'AT_ORIGIN_WAREHOUSE', 'TRANSIT_ASSIGNED', 'IN_TRANSIT', 'AT_DEST_WAREHOUSE', 'DELIVERY_ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+const STATUS_LABELS = { PENDING_ROUTING: 'Pending Routing', ROUTED: 'Routed', PICKUP_ASSIGNED: 'Pickup Assigned', PICKED_UP: 'Picked Up', AT_ORIGIN_WAREHOUSE: 'At Origin Hub', TRANSIT_ASSIGNED: 'Transit Assigned', IN_TRANSIT: 'In Transit', AT_DEST_WAREHOUSE: 'At Dest Hub', DELIVERY_ASSIGNED: 'Delivery Assigned', OUT_FOR_DELIVERY: 'Out for Delivery', DELIVERED: 'Delivered', FAILED_DELIVERY: 'Failed' };
 
 const ShipmentsPage = () => {
   const { user } = useAuth();
@@ -13,10 +13,10 @@ const ShipmentsPage = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [routeForm, setRouteForm] = useState({ next_stop_warehouse_id: '', is_final_delivery: false });
-  const [dispatchDriverId, setDispatchDriverId] = useState('');
-  const [showRouteModal, setShowRouteModal] = useState(false);
-  const [showDispatchModal, setShowDispatchModal] = useState(false);
+
+  const [assignDriverId, setAssignDriverId] = useState('');
+  const [assignType, setAssignType] = useState('');
+  const [showAssignModal, setShowAssignModal] = useState(false);
 
   const role = user?.role;
   const isDriver = role === 'DRIVER';
@@ -55,39 +55,27 @@ const ShipmentsPage = () => {
     catch (error) { alert('Error: ' + (error.response?.data?.error || error.message)); }
   };
 
-  const handleReceive = async (shipmentId) => {
-    try { await shipmentService.receiveAtWarehouse(shipmentId); fetchShipments(); if (selectedShipment) await viewShipmentDetail(selectedShipment); }
-    catch (error) { alert('Error: ' + (error.response?.data?.error || error.message)); }
-  };
 
-  const handleRoute = async (e) => {
+
+  const handleAssign = async (e) => {
     e.preventDefault();
     try {
-      await shipmentService.routeShipment(selectedShipment.shipment_id, {
-        next_stop_warehouse_id: routeForm.is_final_delivery ? null : parseInt(routeForm.next_stop_warehouse_id, 10),
-        is_final_delivery: routeForm.is_final_delivery,
-      });
-      setShowRouteModal(false); await viewShipmentDetail(selectedShipment); fetchShipments();
+      await shipmentService.assignDriver(selectedShipment.shipment_id, assignType, parseInt(assignDriverId, 10));
+      setShowAssignModal(false); await viewShipmentDetail(selectedShipment); fetchShipments();
     } catch (error) { alert('Error: ' + (error.response?.data?.error || error.message)); }
   };
 
-  const handleDispatch = async (e) => {
-    e.preventDefault();
-    try {
-      await shipmentService.dispatchShipment(selectedShipment.shipment_id, {
-        driver_id: parseInt(dispatchDriverId, 10), is_final_delivery: selectedShipment.is_final_delivery,
-      });
-      setShowDispatchModal(false); await viewShipmentDetail(selectedShipment); fetchShipments();
-    } catch (error) { alert('Error: ' + (error.response?.data?.error || error.message)); }
-  };
+  const openAssignModal = (type) => { setAssignType(type); setAssignDriverId(''); setShowAssignModal(true); };
 
   const getDriverStatusButtons = () => {
-    if (!selectedShipment) return [];
+    if (!selectedShipment || !isDriver) return [];
     const s = selectedShipment.status;
     const buttons = [];
-    if (s === 'PENDING_PICKUP') buttons.push({ label: 'Pick Up', status: 'PICKED_UP', color: 'blue' });
-    if (s === 'PICKED_UP') buttons.push({ label: 'Arrived at Hub', status: 'ARRIVED_AT_WAREHOUSE', color: 'green' });
-    if (s === 'IN_TRANSIT') buttons.push({ label: 'Arrived at Hub', status: 'ARRIVED_AT_WAREHOUSE', color: 'green' });
+    if (s === 'PICKUP_ASSIGNED') buttons.push({ label: 'Mark Picked Up', status: 'PICKED_UP', color: 'blue' });
+    if (s === 'PICKED_UP') buttons.push({ label: 'Drop at Origin Hub', status: 'AT_ORIGIN_WAREHOUSE', color: 'green' });
+    if (s === 'TRANSIT_ASSIGNED') buttons.push({ label: 'Start Transit', status: 'IN_TRANSIT', color: 'blue' });
+    if (s === 'IN_TRANSIT') buttons.push({ label: 'Drop at Dest Hub', status: 'AT_DEST_WAREHOUSE', color: 'green' });
+    if (s === 'DELIVERY_ASSIGNED') buttons.push({ label: 'Start Delivery', status: 'OUT_FOR_DELIVERY', color: 'blue' });
     if (s === 'OUT_FOR_DELIVERY') {
       buttons.push({ label: 'Mark Delivered', status: 'DELIVERED', color: 'emerald' });
       buttons.push({ label: 'Mark Failed', status: 'FAILED_DELIVERY', color: 'red' });
@@ -103,6 +91,9 @@ const ShipmentsPage = () => {
   // Detail View
   if (selectedShipment) {
     const s = selectedShipment;
+    const isAtOriginWH = user?.warehouse_id === s.origin_warehouse_id;
+    const isAtDestWH = user?.warehouse_id === s.dest_warehouse_id;
+
     return (
       <div className="page-container">
         <div className="page-header">
@@ -142,12 +133,22 @@ const ShipmentsPage = () => {
             <div className="detail-row"><span className="detail-label">Items</span><span>{s.items_count}</span></div>
             <div className="detail-row"><span className="detail-label">Weight</span><span>{s.weight_kg ? `${s.weight_kg.toFixed(1)} kg` : '—'}</span></div>
             <div className="detail-row"><span className="detail-label">Est. Delivery</span><span>{s.estimated_delivery_date ? new Date(s.estimated_delivery_date).toLocaleDateString() : '—'}</span></div>
-            {s.driver && <div className="detail-row"><span className="detail-label">Driver</span><span>{s.driver.name} ({s.driver.phone})</span></div>}
+            {s.pickup_driver && <div className="detail-row"><span className="detail-label">Pickup Driver</span><span>{s.pickup_driver.name}</span></div>}
+            {s.heavy_driver && <div className="detail-row"><span className="detail-label">Heavy Driver</span><span>{s.heavy_driver.name}</span></div>}
+            {s.delivery_driver && <div className="detail-row"><span className="detail-label">Delivery Driver</span><span>{s.delivery_driver.name}</span></div>}
           </div>
           <div className="detail-card">
-            <h3>Warehouse Status</h3>
-            <div className="detail-row"><span className="detail-label">Current Hub</span><span>{s.current_warehouse?.name || 'In Transit / At Location'}</span></div>
-            <div className="detail-row"><span className="detail-label">Next Stop</span><span>{s.is_final_delivery ? 'Final Delivery' : (s.next_stop_warehouse?.name || 'Not routed yet')}</span></div>
+            <h3>Locations</h3>
+            <div className="detail-row"><span className="detail-label">Pickup From</span><span>{s.order?.pickup_address}, {s.order?.pickup_city}</span></div>
+            <div className="detail-row"><span className="detail-label">Customer</span><span>{s.order?.sender_name} ({s.order?.sender_phone})</span></div>
+            <hr style={{ margin: '12px 0', borderColor: 'var(--gray-200)' }} />
+            <div className="detail-row"><span className="detail-label">Deliver To</span><span>{s.order?.delivery_address}, {s.order?.delivery_city}</span></div>
+            <div className="detail-row"><span className="detail-label">Receiver</span><span>{s.order?.receiver_name} ({s.order?.receiver_phone})</span></div>
+          </div>
+          <div className="detail-card">
+            <h3>Warehouse Route</h3>
+            <div className="detail-row"><span className="detail-label">Origin Hub</span><span>{s.origin_warehouse?.name || '—'}</span></div>
+            <div className="detail-row"><span className="detail-label">Dest Hub</span><span>{s.dest_warehouse?.name || 'Not routed yet'}</span></div>
           </div>
         </div>
 
@@ -166,30 +167,14 @@ const ShipmentsPage = () => {
         {isStaff && (
           <div className="action-bar"><h3>Warehouse Actions</h3>
             <div className="action-buttons">
-              {(s.status === 'ARRIVED_AT_WAREHOUSE' || s.status === 'PICKED_UP') && <button className="btn-primary btn-green" onClick={() => handleReceive(s.shipment_id)}>Receive Package</button>}
-              {s.status === 'ROUTED' && <button className="btn-primary btn-blue" onClick={() => { setDispatchDriverId(''); setShowDispatchModal(true); }}>Assign Driver &amp; Dispatch</button>}
+              {isAtOriginWH && s.status === 'ROUTED' && <button className="btn-primary btn-blue" onClick={() => openAssignModal('pickup')}>Assign Pickup Driver</button>}
+              {isAtOriginWH && s.status === 'AT_ORIGIN_WAREHOUSE' && <button className="btn-primary btn-blue" onClick={() => openAssignModal('heavy')}>Assign Heavy Driver</button>}
+              {isAtDestWH && s.status === 'AT_DEST_WAREHOUSE' && <button className="btn-primary btn-blue" onClick={() => openAssignModal('delivery')}>Assign Delivery Driver</button>}
             </div>
           </div>
         )}
 
-        {/* Manager Actions */}
-        {isManager && (
-          <div className="action-bar"><h3>Manager Actions</h3>
-            <div className="action-buttons">
-              {s.status === 'IN_WAREHOUSE' && <button className="btn-primary btn-orange" onClick={() => { setRouteForm({ next_stop_warehouse_id: '', is_final_delivery: false }); setShowRouteModal(true); }}>Route Package</button>}
-              {s.status === 'ROUTED' && <button className="btn-primary btn-blue" onClick={() => { setDispatchDriverId(''); setShowDispatchModal(true); }}>Assign Driver &amp; Dispatch</button>}
-              {s.status === 'PENDING_PICKUP' && !s.driver && <button className="btn-primary btn-green" onClick={() => { setDispatchDriverId(''); setShowDispatchModal(true); }}>Assign Pickup Driver</button>}
-            </div>
-          </div>
-        )}
 
-        {s.deliveryProofs?.length > 0 && (
-          <div className="section-card"><h3>Delivery Proofs</h3>
-            {s.deliveryProofs.map(p => (
-              <div key={p.proof_id} className="linked-item"><span>{p.proof_type}</span><span className={`status-badge status-${p.verification_status?.toLowerCase()}`}>{p.verification_status}</span></div>
-            ))}
-          </div>
-        )}
 
         {s.statusHistory?.length > 0 && (
           <div className="section-card"><h3>Status History</h3>
@@ -199,38 +184,20 @@ const ShipmentsPage = () => {
           </div>
         )}
 
-        {showRouteModal && (
-          <div className="modal-overlay" onClick={() => setShowRouteModal(false)}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-              <h2>Route Package</h2><p className="modal-subtitle">Decide where this package goes next</p>
-              <form onSubmit={handleRoute}>
-                <div className="form-group"><label><input type="checkbox" checked={routeForm.is_final_delivery} onChange={e => setRouteForm({...routeForm, is_final_delivery: e.target.checked, next_stop_warehouse_id: ''})} /> Send directly to receiver (final delivery)</label></div>
-                {!routeForm.is_final_delivery && (
-                  <div className="form-group"><label>Next Warehouse Hub *</label>
-                    <select value={routeForm.next_stop_warehouse_id} onChange={e => setRouteForm({...routeForm, next_stop_warehouse_id: e.target.value})} required>
-                      <option value="">-- Select Warehouse --</option>
-                      {warehouses.filter(w => w.warehouse_id !== user?.warehouse_id).map(w => <option key={w.warehouse_id} value={w.warehouse_id}>{w.name} ({w.city})</option>)}
-                    </select>
-                  </div>
-                )}
-                <div className="modal-actions"><button type="button" className="btn-secondary" onClick={() => setShowRouteModal(false)}>Cancel</button><button type="submit" className="btn-primary">Set Route</button></div>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {showDispatchModal && (
-          <div className="modal-overlay" onClick={() => setShowDispatchModal(false)}>
+
+        {showAssignModal && (
+          <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
-              <h2>Assign Driver</h2><p className="modal-subtitle">Select a driver from this warehouse</p>
-              <form onSubmit={handleDispatch}>
+              <h2>Assign {assignType} Driver</h2><p className="modal-subtitle">Select a driver from this warehouse</p>
+              <form onSubmit={handleAssign}>
                 <div className="form-group"><label>Available Drivers</label>
-                  <select value={dispatchDriverId} onChange={e => setDispatchDriverId(e.target.value)} required>
+                  <select value={assignDriverId} onChange={e => setAssignDriverId(e.target.value)} required>
                     <option value="">-- Select Driver --</option>
                     {drivers.map(d => <option key={d.user_id} value={d.user_id}>{d.name} ({d.phone})</option>)}
                   </select>
                 </div>
-                <div className="modal-actions"><button type="button" className="btn-secondary" onClick={() => setShowDispatchModal(false)}>Cancel</button><button type="submit" className="btn-primary">Assign &amp; Dispatch</button></div>
+                <div className="modal-actions"><button type="button" className="btn-secondary" onClick={() => setShowAssignModal(false)}>Cancel</button><button type="submit" className="btn-primary">Assign Driver</button></div>
               </form>
             </div>
           </div>
@@ -252,19 +219,17 @@ const ShipmentsPage = () => {
       ) : (
         <div className="table-container">
           <table>
-            <thead><tr><th>Shipment #</th><th>{isDriver ? 'Sender' : 'Sender / Receiver'}</th><th>{isDriver ? 'Instructions' : 'Route'}</th><th>Status</th>{!isCustomer && <th>Driver</th>}<th>Est. Delivery</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Shipment #</th><th>{isDriver ? 'Sender' : 'Sender / Receiver'}</th><th>Route</th><th>Status</th><th>Est. Delivery</th><th>Actions</th></tr></thead>
             <tbody>
               {shipments.map(ship => (
                 <tr key={ship.shipment_id}>
                   <td className="order-number">{ship.shipment_number}</td>
                   <td>{isDriver ? ship.order?.sender_name : `${ship.order?.sender_name || '—'} / ${ship.order?.receiver_name || '—'}`}</td>
-                  <td>{isDriver ? getDriverInstructions(ship) : `${ship.order?.pickup_city || '—'} → ${ship.order?.delivery_city || '—'}`}</td>
+                  <td>{`${ship.order?.pickup_city || '—'} → ${ship.order?.delivery_city || '—'}`}</td>
                   <td><span className={`status-badge status-${ship.status?.toLowerCase().replace(/_/g,'-')}`}>{STATUS_LABELS[ship.status] || ship.status}</span></td>
-                  {!isCustomer && <td>{ship.driver?.name || '—'}</td>}
                   <td>{ship.estimated_delivery_date ? new Date(ship.estimated_delivery_date).toLocaleDateString() : '—'}</td>
                   <td className="actions-cell">
                     <button className="btn-sm" onClick={() => viewShipmentDetail(ship)}>{isCustomer ? 'Track' : 'View'}</button>
-                    {isStaff && (ship.status === 'ARRIVED_AT_WAREHOUSE' || ship.status === 'PICKED_UP') && <button className="btn-sm btn-confirm" onClick={() => handleReceive(ship.shipment_id)}>Receive</button>}
                   </td>
                 </tr>
               ))}
@@ -274,15 +239,6 @@ const ShipmentsPage = () => {
       )}
     </div>
   );
-};
-
-const getDriverInstructions = (ship) => {
-  const s = ship.status;
-  if (s === 'PENDING_PICKUP') return `Pick up from ${ship.order?.pickup_city || '—'}`;
-  if (s === 'PICKED_UP') return `Deliver to hub`;
-  if (s === 'IN_TRANSIT') return `Transit to ${ship.next_stop_warehouse?.city || 'hub'}`;
-  if (s === 'OUT_FOR_DELIVERY') return `Deliver to ${ship.order?.delivery_city || 'receiver'}`;
-  return ship.current_location || '—';
 };
 
 export default ShipmentsPage;

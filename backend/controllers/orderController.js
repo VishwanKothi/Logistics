@@ -8,6 +8,8 @@ class OrderController {
         ...req.body,
         user_id: user.user_id,
         origin_warehouse_id: parseInt(req.body.origin_warehouse_id, 10),
+        items_count: parseInt(req.body.items_count, 10) || 1,
+        weight_kg: parseFloat(req.body.weight_kg) || null,
       };
 
       // Auto-fill sender info for customers

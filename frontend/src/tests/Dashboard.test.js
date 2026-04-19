@@ -5,10 +5,10 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import Dashboard from '../pages/Dashboard';
 
-jest.mock('../services/orderService', () => ({ __esModule: true, default: { getAllOrders: jest.fn().mockResolvedValue({ data: [] }) } }));
-jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getActiveShipments: jest.fn().mockResolvedValue({ data: [] }), getWarehouseShipments: jest.fn().mockResolvedValue({ data: [] }), getDriverDeliveries: jest.fn().mockResolvedValue({ data: [] }) } }));
-jest.mock('../services/exceptionService', () => ({ __esModule: true, default: { getOpenExceptions: jest.fn().mockResolvedValue({ data: [] }) } }));
-jest.mock('../services/billingService', () => ({ __esModule: true, default: { getWeeklyReport: jest.fn().mockResolvedValue({ data: {} }) } }));
+jest.mock('../services/orderService', () => ({ __esModule: true, default: { getAllOrders: jest.fn() } }));
+jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getActiveShipments: jest.fn(), getWarehouseShipments: jest.fn(), getDriverDeliveries: jest.fn() } }));
+jest.mock('../services/exceptionService', () => ({ __esModule: true, default: { getOpenExceptions: jest.fn() } }));
+jest.mock('../services/billingService', () => ({ __esModule: true, default: { getWeeklyReport: jest.fn() } }));
 jest.mock('react-router-dom', () => ({ ...jest.requireActual('react-router-dom'), useNavigate: () => jest.fn() }));
 
 const renderDashboard = () => {
@@ -18,7 +18,21 @@ const renderDashboard = () => {
 };
 
 describe('Dashboard', () => {
-  beforeEach(() => localStorage.clear());
-  test('renders quick action cards', async () => { renderDashboard(); await waitFor(() => expect(screen.getByText('All Orders')).toBeInTheDocument()); });
-  test('renders billing card for admin', async () => { renderDashboard(); await waitFor(() => expect(screen.getByText('Billing')).toBeInTheDocument()); });
+  const orderSvc = require('../services/orderService').default;
+  const shipmentSvc = require('../services/shipmentService').default;
+  const exceptionSvc = require('../services/exceptionService').default;
+  const billingSvc = require('../services/billingService').default;
+
+  beforeEach(() => {
+    localStorage.clear();
+    orderSvc.getAllOrders.mockResolvedValue({ data: [] });
+    shipmentSvc.getActiveShipments.mockResolvedValue({ data: [] });
+    shipmentSvc.getWarehouseShipments.mockResolvedValue({ data: [] });
+    shipmentSvc.getDriverDeliveries.mockResolvedValue({ data: [] });
+    exceptionSvc.getOpenExceptions.mockResolvedValue({ data: [] });
+    billingSvc.getWeeklyReport.mockResolvedValue({ data: {} });
+  });
+
+  test('renders quick action cards', async () => { const { container } = renderDashboard(); await waitFor(() => expect(screen.getByText('All Orders')).toBeInTheDocument()); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
+  test('renders billing card for admin', async () => { const { container } = renderDashboard(); await waitFor(() => expect(screen.getByText('Billing')).toBeInTheDocument()); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
 });

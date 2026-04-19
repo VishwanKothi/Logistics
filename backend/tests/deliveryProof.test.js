@@ -8,8 +8,12 @@ describe('Delivery Proof API', () => {
   let testShipmentId;
 
   beforeAll(async () => {
-    // Create order + shipment for proof tests
+    // Get valid warehouse ID
     const adminHeaders = await getAuthHeader('ADMIN');
+    const whRes = await request(app).get('/api/warehouses').set(adminHeaders);
+    const validWhId = whRes.body[0]?.warehouse_id || 1;
+
+    // Create order + shipment for proof tests
     const orderRes = await request(app)
       .post('/api/orders')
       .set(adminHeaders)
@@ -18,7 +22,9 @@ describe('Delivery Proof API', () => {
         pickup_address: 'A', pickup_city: 'Mumbai',
         receiver_name: 'Proof Receiver', receiver_phone: '222',
         delivery_address: 'B', delivery_city: 'Delhi',
-        origin_warehouse_id: 1,
+        origin_warehouse_id: validWhId,
+        items_count: 1,
+        weight_kg: 2.0
       });
     const orderId = orderRes.body.order.order_id;
 
@@ -26,7 +32,7 @@ describe('Delivery Proof API', () => {
     const shipRes = await request(app)
       .post('/api/shipments')
       .set(mgrHeaders)
-      .send({ order_id: orderId, items_count: 1 });
+      .send({ order_id: orderId, dest_warehouse_id: validWhId });
     testShipmentId = shipRes.body.shipment.shipment_id;
   });
 

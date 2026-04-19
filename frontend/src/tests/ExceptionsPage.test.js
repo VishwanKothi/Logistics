@@ -5,8 +5,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import ExceptionsPage from '../pages/ExceptionsPage';
 
-jest.mock('../services/exceptionService', () => ({ __esModule: true, default: { getOpenExceptions: jest.fn().mockResolvedValue({ data: [] }), resolveException: jest.fn(), createException: jest.fn() } }));
-jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getActiveShipments: jest.fn().mockResolvedValue({ data: [] }) } }));
+jest.mock('../services/exceptionService', () => ({ __esModule: true, default: { getOpenExceptions: jest.fn(), resolveException: jest.fn(), createException: jest.fn() } }));
+jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getActiveShipments: jest.fn() } }));
 
 const renderExceptions = () => {
   localStorage.setItem('token', 'tk');
@@ -15,7 +15,15 @@ const renderExceptions = () => {
 };
 
 describe('ExceptionsPage', () => {
-  beforeEach(() => localStorage.clear());
-  test('renders page heading', async () => { renderExceptions(); await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Exceptions')); });
-  test('calls service on mount', async () => { const svc = require('../services/exceptionService').default; renderExceptions(); await waitFor(() => expect(svc.getOpenExceptions).toHaveBeenCalled()); });
+  const exceptionSvc = require('../services/exceptionService').default;
+  const shipmentSvc = require('../services/shipmentService').default;
+
+  beforeEach(() => {
+    localStorage.clear();
+    exceptionSvc.getOpenExceptions.mockResolvedValue({ data: [] });
+    shipmentSvc.getActiveShipments.mockResolvedValue({ data: [] });
+  });
+
+  test('renders page heading', async () => { const { container } = renderExceptions(); await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Exceptions')); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
+  test('calls service on mount', async () => { const { container } = renderExceptions(); await waitFor(() => expect(exceptionSvc.getOpenExceptions).toHaveBeenCalled()); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
 });

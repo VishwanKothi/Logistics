@@ -4,6 +4,13 @@ const { getAuthHeader } = require('./helpers/authHelper');
 
 describe('Order API', () => {
   let createdOrderId;
+  let validWhId = 1;
+
+  beforeAll(async () => {
+    const headers = await getAuthHeader('ADMIN');
+    const whRes = await request(app).get('/api/warehouses').set(headers);
+    if (whRes.body && whRes.body.length > 0) validWhId = whRes.body[0].warehouse_id;
+  });
 
   // --- Create Order ---
   describe('POST /api/orders', () => {
@@ -22,7 +29,9 @@ describe('Order API', () => {
           receiver_phone: '2222222222',
           delivery_address: '456 Deliver Ave',
           delivery_city: 'Delhi',
-          origin_warehouse_id: 1,
+          origin_warehouse_id: validWhId,
+          items_count: 2,
+          weight_kg: 5.5
         });
       expect(res.status).toBe(201);
       expect(res.body.order).toHaveProperty('order_id');
@@ -44,7 +53,9 @@ describe('Order API', () => {
           receiver_phone: '4444444444',
           delivery_address: '321 Drop Blvd',
           delivery_city: 'Kolkata',
-          origin_warehouse_id: 1,
+          origin_warehouse_id: validWhId,
+          items_count: 2,
+          weight_kg: 5.5
         });
       expect(res.status).toBe(201);
     });

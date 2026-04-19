@@ -8,16 +8,23 @@ describe('Billing API', () => {
   // We need an existing order to create invoices against
   let testOrderId;
   beforeAll(async () => {
-    const headers = await getAuthHeader('ADMIN');
+    // Get valid warehouse ID
+    const adminHeaders = await getAuthHeader('ADMIN');
+    const whRes = await request(app).get('/api/warehouses').set(adminHeaders);
+    const validWhId = whRes.body[0]?.warehouse_id || 1;
+
+    // Create a base order to bill against
     const res = await request(app)
       .post('/api/orders')
-      .set(headers)
+      .set(adminHeaders)
       .send({
         sender_name: 'Bill Sender', sender_email: 'b@t.com', sender_phone: '111',
         pickup_address: 'A', pickup_city: 'Mumbai',
         receiver_name: 'Bill Receiver', receiver_phone: '222',
         delivery_address: 'B', delivery_city: 'Delhi',
-        origin_warehouse_id: 1,
+        origin_warehouse_id: validWhId,
+        items_count: 1,
+        weight_kg: 2.0
       });
     testOrderId = res.body.order.order_id;
   });

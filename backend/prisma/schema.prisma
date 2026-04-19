@@ -29,12 +29,15 @@ enum OrderStatus {
 }
 
 enum ShipmentStatus {
-  PENDING_PICKUP
-  PICKED_UP
-  ARRIVED_AT_WAREHOUSE
-  IN_WAREHOUSE
+  PENDING_ROUTING
   ROUTED
+  PICKUP_ASSIGNED
+  PICKED_UP
+  AT_ORIGIN_WAREHOUSE
+  TRANSIT_ASSIGNED
   IN_TRANSIT
+  AT_DEST_WAREHOUSE
+  DELIVERY_ASSIGNED
   OUT_FOR_DELIVERY
   DELIVERED
   FAILED_DELIVERY
@@ -104,7 +107,9 @@ model User {
   // Relations
   warehouse         Warehouse?    @relation(fields: [warehouse_id], references: [warehouse_id])
   orders            Order[]
-  shipments         Shipment[]    @relation("DriverShipments")
+  pickup_shipments  Shipment[]    @relation("PickupDriver")
+  heavy_shipments   Shipment[]    @relation("HeavyDriver")
+  delivery_shipments Shipment[]   @relation("DeliveryDriver")
   exceptions        ExceptionReport[]
   notifications     Notification[]
   deliveryProofs    DeliveryProof[]
@@ -128,10 +133,8 @@ model Warehouse {
   // Relations
   users             User[]
   orders            Order[]       @relation("OriginWarehouse")
-  handoffsFrom      Handoff[]     @relation("FromWarehouse")
-  handoffsTo        Handoff[]     @relation("ToWarehouse")
-  currentShipments  Shipment[]    @relation("CurrentWarehouse")
-  nextStopShipments Shipment[]    @relation("NextStopWarehouse")
+  origin_shipments  Shipment[]    @relation("OriginShipments")
+  dest_shipments    Shipment[]    @relation("DestShipments")
 
   @@index([city])
 }
@@ -152,7 +155,6 @@ model Order {
   pickup_state      String?
   pickup_country    String?
 
-  // Receiver (person receiving the package)
   receiver_name     String
   receiver_email    String?
   receiver_phone    String
@@ -162,6 +164,10 @@ model Order {
   delivery_city     String
   delivery_state    String?
   delivery_country  String?
+
+  // Package details
+  items_count       Int           @default(1)
+  weight_kg         Float?
 
   // Origin warehouse (where the customer placed the order)
   origin_warehouse_id Int
@@ -200,17 +206,20 @@ model Shipment {
   shipment_id       Int           @id @default(autoincrement())
   shipment_number   String        @unique
   order_id          Int
-  driver_id         Int?          // Currently assigned driver
+  
+  // Routing
+  origin_warehouse_id Int
+  dest_warehouse_id   Int?
+
+  // Drivers
+  pickup_driver_id    Int?
+  heavy_driver_id     Int?
+  delivery_driver_id  Int?
+
   weight_kg         Float?
   items_count       Int           @default(0)
-  current_location  String?
 
-  // Warehouse tracking
-  current_warehouse_id    Int?    // Which warehouse it's currently at
-  next_stop_warehouse_id  Int?    // Manager's decision: next warehouse (null if final delivery)
-  is_final_delivery       Boolean @default(false) // true = next stop is the receiver
-
-  status            ShipmentStatus @default(PENDING_PICKUP)
+  status            ShipmentStatus @default(PENDING_ROUTING)
   estimated_delivery_date DateTime?
   actual_delivery_date DateTime?
   created_at        DateTime      @default(now())
@@ -218,18 +227,20 @@ model Shipment {
 
   // Relations
   order             Order         @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
-  driver            User?         @relation("DriverShipments", fields: [driver_id], references: [user_id], onDelete: SetNull)
-  current_warehouse Warehouse?    @relation("CurrentWarehouse", fields: [current_warehouse_id], references: [warehouse_id])
-  next_stop_warehouse Warehouse?  @relation("NextStopWarehouse", fields: [next_stop_warehouse_id], references: [warehouse_id])
-  handoffs          Handoff[]
+  origin_warehouse  Warehouse     @relation("OriginShipments", fields: [origin_warehouse_id], references: [warehouse_id])
+  dest_warehouse    Warehouse?    @relation("DestShipments", fields: [dest_warehouse_id], references: [warehouse_id])
+  pickup_driver     User?         @relation("PickupDriver", fields: [pickup_driver_id], references: [user_id], onDelete: SetNull)
+  heavy_driver      User?         @relation("HeavyDriver", fields: [heavy_driver_id], references: [user_id], onDelete: SetNull)
+  delivery_driver   User?         @relation("DeliveryDriver", fields: [delivery_driver_id], references: [user_id], onDelete: SetNull)
+  
   deliveryProofs    DeliveryProof[]
   statusHistory     ShipmentStatusHistory[]
   exceptions        ExceptionReport[]
 
   @@index([order_id])
-  @@index([driver_id])
   @@index([status])
-  @@index([current_warehouse_id])
+  @@index([origin_warehouse_id])
+  @@index([dest_warehouse_id])
   @@index([created_at])
 }
 
@@ -247,23 +258,7 @@ model ShipmentStatusHistory {
   @@index([shipment_id])
 }
 
-model Handoff {
-  handoff_id        Int           @id @default(autoincrement())
-  shipment_id       Int
-  from_warehouse_id Int
-  to_warehouse_id   Int
-  handoff_date      DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
 
-  // Relations
-  shipment          Shipment      @relation(fields: [shipment_id], references: [shipment_id], onDelete: Cascade)
-  fromWarehouse     Warehouse     @relation("FromWarehouse", fields: [from_warehouse_id], references: [warehouse_id])
-  toWarehouse       Warehouse     @relation("ToWarehouse", fields: [to_warehouse_id], references: [warehouse_id])
-
-  @@index([shipment_id])
-  @@index([from_warehouse_id])
-  @@index([to_warehouse_id])
-}
 
 model DeliveryProof {
   proof_id          Int           @id @default(autoincrement())

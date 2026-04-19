@@ -3,7 +3,7 @@ const app = require('../../server');
 
 const TEST_ACCOUNTS = {
   ADMIN: { email: 'admin@example.com', password: 'password123' },
-  CUSTOMER: { email: 'customer@example.com', password: 'password123' },
+  CUSTOMER: { email: 'customer1@example.com', password: 'password123' },
   MANAGER: { email: 'manager-mumbai@example.com', password: 'password123' },
   DRIVER: { email: 'driver1-mumbai@example.com', password: 'password123' },
   WAREHOUSE_STAFF: { email: 'staff-mumbai@example.com', password: 'password123' },

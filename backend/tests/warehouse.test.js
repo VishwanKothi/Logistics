@@ -3,6 +3,15 @@ const app = require('../server');
 const { getAuthHeader } = require('./helpers/authHelper');
 
 describe('Warehouse API', () => {
+  let validWhId = 1;
+
+  beforeAll(async () => {
+    const res = await request(app).get('/api/warehouses');
+    if (res.body && res.body.length > 0) {
+      validWhId = res.body[0].warehouse_id;
+    }
+  });
+
   describe('GET /api/warehouses', () => {
     it('should return all warehouses (public endpoint)', async () => {
       const res = await request(app).get('/api/warehouses');
@@ -17,9 +26,9 @@ describe('Warehouse API', () => {
 
   describe('GET /api/warehouses/:warehouseId', () => {
     it('should return warehouse by ID with users', async () => {
-      const res = await request(app).get('/api/warehouses/1');
+      const res = await request(app).get(`/api/warehouses/${validWhId}`);
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('warehouse_id', 1);
+      expect(res.body).toHaveProperty('warehouse_id', validWhId);
       expect(res.body).toHaveProperty('users');
       expect(Array.isArray(res.body.users)).toBe(true);
     });
@@ -33,13 +42,13 @@ describe('Warehouse API', () => {
   describe('GET /api/warehouses/:warehouseId/drivers', () => {
     it('should return drivers for a warehouse (authenticated)', async () => {
       const headers = await getAuthHeader('ADMIN');
-      const res = await request(app).get('/api/warehouses/1/drivers').set(headers);
+      const res = await request(app).get(`/api/warehouses/${validWhId}/drivers`).set(headers);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('should reject unauthenticated request', async () => {
-      const res = await request(app).get('/api/warehouses/1/drivers');
+      const res = await request(app).get(`/api/warehouses/${validWhId}/drivers`);
       expect(res.status).toBe(401);
     });
   });

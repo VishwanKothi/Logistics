@@ -20,6 +20,8 @@ class OrderService {
         delivery_address: orderData.delivery_address,
         delivery_city: orderData.delivery_city,
         delivery_state: orderData.delivery_state,
+        items_count: orderData.items_count,
+        weight_kg: orderData.weight_kg,
         origin_warehouse_id: orderData.origin_warehouse_id,
         notes: orderData.notes,
         status: 'PLACED',
@@ -39,7 +41,7 @@ class OrderService {
         user: { select: { user_id: true, name: true, email: true, role: true } },
         origin_warehouse: { select: { warehouse_id: true, name: true, city: true } },
         shipments: {
-          select: { shipment_id: true, shipment_number: true, status: true, driver_id: true, current_location: true, estimated_delivery_date: true },
+          select: { shipment_id: true, shipment_number: true, status: true, estimated_delivery_date: true },
         },
       },
     });

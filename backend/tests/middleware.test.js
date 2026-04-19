@@ -59,7 +59,7 @@ describe('Middleware', () => {
       // First login as customer
       const loginRes = await request(app)
         .post('/api/users/login')
-        .send({ email: 'customer@example.com', password: 'password123' });
+        .send({ email: 'customer1@example.com', password: 'password123' });
       const token = loginRes.body.token;
 
       const res = await request(app)

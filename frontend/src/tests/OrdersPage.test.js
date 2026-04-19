@@ -5,9 +5,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import OrdersPage from '../pages/OrdersPage';
 
-jest.mock('../services/orderService', () => ({ __esModule: true, default: { getAllOrders: jest.fn().mockResolvedValue({ data: [] }), createOrder: jest.fn(), updateOrderStatus: jest.fn() } }));
-jest.mock('../services/warehouseService', () => ({ __esModule: true, default: { getAllWarehouses: jest.fn().mockResolvedValue({ data: [] }), getWarehouseDrivers: jest.fn().mockResolvedValue({ data: [] }) } }));
-jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getShipmentsByOrder: jest.fn().mockResolvedValue({ data: [] }) } }));
+jest.mock('../services/orderService', () => ({ __esModule: true, default: { getAllOrders: jest.fn(), createOrder: jest.fn(), updateOrderStatus: jest.fn() } }));
+jest.mock('../services/warehouseService', () => ({ __esModule: true, default: { getAllWarehouses: jest.fn(), getWarehouseDrivers: jest.fn() } }));
+jest.mock('../services/shipmentService', () => ({ __esModule: true, default: { getShipmentsByOrder: jest.fn() } }));
 
 const renderOrders = (role = 'ADMIN') => {
   localStorage.setItem('token', 'tk');
@@ -16,7 +16,18 @@ const renderOrders = (role = 'ADMIN') => {
 };
 
 describe('OrdersPage', () => {
-  beforeEach(() => localStorage.clear());
-  test('renders heading for admin', async () => { renderOrders(); await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('All Orders')); });
-  test('calls getAllOrders on mount', async () => { const svc = require('../services/orderService').default; renderOrders(); await waitFor(() => expect(svc.getAllOrders).toHaveBeenCalled()); });
+  const orderSvc = require('../services/orderService').default;
+  const warehouseSvc = require('../services/warehouseService').default;
+  const shipmentSvc = require('../services/shipmentService').default;
+
+  beforeEach(() => {
+    localStorage.clear();
+    orderSvc.getAllOrders.mockResolvedValue({ data: [] });
+    warehouseSvc.getAllWarehouses.mockResolvedValue({ data: [] });
+    warehouseSvc.getWarehouseDrivers.mockResolvedValue({ data: [] });
+    shipmentSvc.getShipmentsByOrder.mockResolvedValue({ data: [] });
+  });
+
+  test('renders heading for admin', async () => { const { container } = renderOrders(); await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('All Orders')); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
+  test('calls getAllOrders on mount', async () => { const { container } = renderOrders(); await waitFor(() => expect(orderSvc.getAllOrders).toHaveBeenCalled()); await waitFor(() => expect(container.querySelector('.spinner')).not.toBeInTheDocument()); });
 });

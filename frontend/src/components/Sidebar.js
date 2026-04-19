@@ -17,7 +17,7 @@ const allNavItems = [
   { path: '/billing', label: 'Billing', icon: '◈', roles: ['ADMIN'] },
   { path: '/delivery-proofs', label: 'Delivery Proofs', icon: '▣', roles: ['ADMIN'] },
   { path: '/delivery-proofs', label: 'Verify Proofs', icon: '▣', roles: ['MANAGER'] },
-  { path: '/delivery-proofs', label: 'Upload Proof', icon: '▣', roles: ['DRIVER', 'WAREHOUSE_STAFF'] },
+  { path: '/delivery-proofs', label: 'Upload Proof', icon: '▣', roles: ['DRIVER'] },
 ];
 
 const Sidebar = () => {

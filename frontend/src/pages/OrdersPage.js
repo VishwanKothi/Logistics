@@ -9,7 +9,8 @@ const OrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCreateShipmentModal, setShowCreateShipmentModal] = useState(false);
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeDestId, setRouteDestId] = useState('');
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -25,10 +26,11 @@ const OrdersPage = () => {
     receiver_name: '', receiver_email: '', receiver_phone: '',
     pickup_address: '', pickup_city: '', pickup_state: '',
     delivery_address: '', delivery_city: '', delivery_state: '',
+    items_count: 1, weight_kg: '',
     origin_warehouse_id: '', notes: '',
   });
 
-  const [shipmentForm, setShipmentForm] = useState({ items_count: 1, weight_kg: '', estimated_delivery_date: '' });
+
 
   useEffect(() => {
     fetchOrders();
@@ -69,6 +71,7 @@ const OrdersPage = () => {
         receiver_name: '', receiver_email: '', receiver_phone: '',
         pickup_address: '', pickup_city: '', pickup_state: '',
         delivery_address: '', delivery_city: '', delivery_state: '',
+        items_count: 1, weight_kg: '',
         origin_warehouse_id: '', notes: '',
       });
       fetchOrders();
@@ -77,28 +80,14 @@ const OrdersPage = () => {
     }
   };
 
-  const handleConfirmOrder = async (orderId) => {
-    try {
-      await orderService.updateOrderStatus(orderId, 'CONFIRMED');
-      fetchOrders();
-      if (selectedOrder?.order_id === orderId) {
-        setSelectedOrder(prev => ({ ...prev, status: 'CONFIRMED' }));
-      }
-    } catch (error) {
-      alert('Error: ' + (error.response?.data?.error || error.message));
-    }
-  };
-
-  const handleCreateShipment = async (e) => {
+  const handleConfirmAndRoute = async (e) => {
     e.preventDefault();
     try {
       await shipmentService.createShipment({
         order_id: selectedOrder.order_id,
-        items_count: parseInt(shipmentForm.items_count, 10),
-        weight_kg: parseFloat(shipmentForm.weight_kg) || null,
-        estimated_delivery_date: shipmentForm.estimated_delivery_date || null,
+        dest_warehouse_id: parseInt(routeDestId, 10),
       });
-      setShowCreateShipmentModal(false);
+      setShowRouteModal(false);
       await orderService.updateOrderStatus(selectedOrder.order_id, 'IN_PROGRESS');
       fetchOrders();
       const updated = await orderService.getOrderById(selectedOrder.order_id);
@@ -160,6 +149,12 @@ const OrdersPage = () => {
           </div>
 
           <div className="detail-card">
+            <h3>Package Details</h3>
+            <div className="detail-row"><span className="detail-label">Items</span><span>{selectedOrder.items_count}</span></div>
+            <div className="detail-row"><span className="detail-label">Weight</span><span>{selectedOrder.weight_kg ? `${selectedOrder.weight_kg} kg` : '—'}</span></div>
+          </div>
+
+          <div className="detail-card">
             <h3>Origin Warehouse</h3>
             <div className="detail-row"><span className="detail-label">Hub</span><span>{selectedOrder.origin_warehouse?.name}</span></div>
             <div className="detail-row"><span className="detail-label">City</span><span>{selectedOrder.origin_warehouse?.city}</span></div>
@@ -173,15 +168,12 @@ const OrdersPage = () => {
           )}
         </div>
 
-        {isManager && selectedOrder.status === 'PLACED' && (
+        {isManager && (selectedOrder.status === 'PLACED' || selectedOrder.status === 'CONFIRMED') && (
           <div className="action-bar">
-            <button className="btn-primary" onClick={() => handleConfirmOrder(selectedOrder.order_id)}>Confirm Order</button>
-          </div>
-        )}
-
-        {isManager && selectedOrder.status === 'CONFIRMED' && (
-          <div className="action-bar">
-            <button className="btn-primary" onClick={() => setShowCreateShipmentModal(true)}>Create Shipment</button>
+            <button className="btn-primary btn-orange" onClick={() => {
+              setRouteDestId('');
+              setShowRouteModal(true);
+            }}>{selectedOrder.status === 'PLACED' ? 'Confirm & Route Package' : 'Route Package'}</button>
           </div>
         )}
 
@@ -197,18 +189,23 @@ const OrdersPage = () => {
           </div>
         )}
 
-        {showCreateShipmentModal && (
-          <div className="modal-overlay" onClick={() => setShowCreateShipmentModal(false)}>
+        {showRouteModal && (
+          <div className="modal-overlay" onClick={() => setShowRouteModal(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
-              <h2>Create Shipment</h2>
+              <h2>Confirm &amp; Route Package</h2>
               <p className="modal-subtitle">For order {selectedOrder.order_number}</p>
-              <form onSubmit={handleCreateShipment}>
-                <div className="form-group"><label>Number of Items</label><input type="number" min="1" value={shipmentForm.items_count} onChange={e => setShipmentForm({...shipmentForm, items_count: e.target.value})} required /></div>
-                <div className="form-group"><label>Weight (kg)</label><input type="number" step="0.1" value={shipmentForm.weight_kg} onChange={e => setShipmentForm({...shipmentForm, weight_kg: e.target.value})} /></div>
-                <div className="form-group"><label>Est. Delivery Date</label><input type="date" value={shipmentForm.estimated_delivery_date} onChange={e => setShipmentForm({...shipmentForm, estimated_delivery_date: e.target.value})} /></div>
+              <form onSubmit={handleConfirmAndRoute}>
+                <div className="form-group"><label>Next Warehouse Hub *</label>
+                  <select value={routeDestId} onChange={e => setRouteDestId(e.target.value)} required>
+                    <option value="">-- Select Destination --</option>
+                    {warehouses.filter(w => w.warehouse_id !== selectedOrder.origin_warehouse_id).map(w => (
+                      <option key={w.warehouse_id} value={w.warehouse_id}>{w.name} ({w.city})</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="modal-actions">
-                  <button type="button" className="btn-secondary" onClick={() => setShowCreateShipmentModal(false)}>Cancel</button>
-                  <button type="submit" className="btn-primary">Create Shipment</button>
+                  <button type="button" className="btn-secondary" onClick={() => setShowRouteModal(false)}>Cancel</button>
+                  <button type="submit" className="btn-primary btn-orange">Confirm &amp; Route</button>
                 </div>
               </form>
             </div>
@@ -257,7 +254,7 @@ const OrdersPage = () => {
                   <td>{new Date(order.created_at).toLocaleDateString()}</td>
                   <td className="actions-cell">
                     <button className="btn-sm" onClick={() => viewOrderDetail(order)}>View</button>
-                    {isManager && order.status === 'PLACED' && <button className="btn-sm btn-confirm" onClick={() => handleConfirmOrder(order.order_id)}>Confirm</button>}
+                    {isManager && (order.status === 'PLACED' || order.status === 'CONFIRMED') && <button className="btn-sm btn-confirm" onClick={() => viewOrderDetail(order)}>Route</button>}
                   </td>
                 </tr>
               ))}
@@ -285,14 +282,7 @@ const OrdersPage = () => {
                   <div className="form-group"><label>State</label><input value={form.pickup_state} onChange={e => setForm({...form, pickup_state: e.target.value})} /></div>
                 </div>
               </div>
-              <div className="form-section"><h3>Select Nearest Warehouse</h3>
-                <div className="form-group"><label>Origin Warehouse *</label>
-                  <select value={form.origin_warehouse_id} onChange={e => setForm({...form, origin_warehouse_id: e.target.value})} required>
-                    <option value="">-- Select Warehouse --</option>
-                    {warehouses.map(w => <option key={w.warehouse_id} value={w.warehouse_id}>{w.name} ({w.city})</option>)}
-                  </select>
-                </div>
-              </div>
+              
               <div className="form-section"><h3>Receiver Information</h3>
                 <div className="form-grid">
                   <div className="form-group"><label>Name *</label><input value={form.receiver_name} onChange={e => setForm({...form, receiver_name: e.target.value})} required /></div>
@@ -300,11 +290,28 @@ const OrdersPage = () => {
                   <div className="form-group"><label>Phone *</label><input value={form.receiver_phone} onChange={e => setForm({...form, receiver_phone: e.target.value})} required /></div>
                 </div>
               </div>
+              
               <div className="form-section"><h3>Delivery Address</h3>
                 <div className="form-grid">
                   <div className="form-group form-full"><label>Address *</label><input value={form.delivery_address} onChange={e => setForm({...form, delivery_address: e.target.value})} required /></div>
                   <div className="form-group"><label>City *</label><input value={form.delivery_city} onChange={e => setForm({...form, delivery_city: e.target.value})} required /></div>
                   <div className="form-group"><label>State</label><input value={form.delivery_state} onChange={e => setForm({...form, delivery_state: e.target.value})} /></div>
+                </div>
+              </div>
+
+              <div className="form-section"><h3>Package Details</h3>
+                <div className="form-grid">
+                  <div className="form-group"><label>Number of Items *</label><input type="number" min="1" value={form.items_count} onChange={e => setForm({...form, items_count: e.target.value})} required /></div>
+                  <div className="form-group"><label>Total Weight (kg)</label><input type="number" step="0.1" value={form.weight_kg} onChange={e => setForm({...form, weight_kg: e.target.value})} /></div>
+                </div>
+              </div>
+
+              <div className="form-section"><h3>Select Nearest Warehouse</h3>
+                <div className="form-group"><label>Origin Warehouse *</label>
+                  <select value={form.origin_warehouse_id} onChange={e => setForm({...form, origin_warehouse_id: e.target.value})} required>
+                    <option value="">-- Select Warehouse --</option>
+                    {warehouses.map(w => <option key={w.warehouse_id} value={w.warehouse_id}>{w.name} ({w.city})</option>)}
+                  </select>
                 </div>
               </div>
               <div className="form-group"><label>Notes</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} placeholder="e.g., Fragile, temperature-sensitive..." /></div>

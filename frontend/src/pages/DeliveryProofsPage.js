@@ -7,7 +7,7 @@ const DeliveryProofsPage = () => {
   const { user } = useAuth();
   const role = user?.role || 'CUSTOMER';
   const isAdmin = role === 'ADMIN' || role === 'MANAGER';
-  const canUpload = role === 'DRIVER' || role === 'WAREHOUSE_STAFF';
+  const canUpload = role === 'DRIVER';
 
   const [proofs, setProofs] = useState([]);
   const [loading, setLoading] = useState(true);

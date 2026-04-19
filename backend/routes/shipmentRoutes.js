@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/active', authMiddleware, shipmentController.getActiveShipments);
 
 // Get Driver's Pending Deliveries
-router.get('/driver/deliveries/pending', authMiddleware, roleMiddleware('DRIVER'), shipmentController.getDriverDeliveries);
+router.get('/driver/deliveries', authMiddleware, roleMiddleware('DRIVER'), shipmentController.getDriverDeliveries);
 
 // Get Warehouse Shipments — Manager, Staff
 router.get('/warehouse', authMiddleware, roleMiddleware('MANAGER', 'WAREHOUSE_STAFF'), shipmentController.getWarehouseShipments);
@@ -48,29 +48,11 @@ router.patch(
   shipmentController.routeShipment
 );
 
-// Dispatch Shipment — Staff assigns driver and dispatches
-router.patch(
-  '/:shipmentId/dispatch',
-  authMiddleware,
-  roleMiddleware('WAREHOUSE_STAFF', 'MANAGER', 'ADMIN'),
-  [body('driver_id', 'Driver ID is required').isInt()],
-  handleValidationErrors,
-  shipmentController.dispatchShipment
-);
-
-// Receive at Warehouse — Staff receives package
-router.patch(
-  '/:shipmentId/receive',
-  authMiddleware,
-  roleMiddleware('WAREHOUSE_STAFF', 'MANAGER', 'ADMIN'),
-  shipmentController.receiveAtWarehouse
-);
-
-// Assign Driver — Manager, Staff
+// Assign Driver — Staff
 router.patch(
   '/:shipmentId/assign-driver',
   authMiddleware,
-  roleMiddleware('ADMIN', 'MANAGER', 'WAREHOUSE_STAFF'),
+  roleMiddleware('WAREHOUSE_STAFF', 'MANAGER', 'ADMIN'),
   shipmentController.assignDriver
 );
 

@@ -30,11 +30,15 @@ const LoginPage = () => {
 
   const demoAccounts = [
     { label: 'Admin', email: 'admin@example.com' },
-    { label: 'Customer', email: 'customer@example.com' },
-    { label: 'Manager — Mumbai', email: 'manager-mumbai@example.com' },
-    { label: 'Staff — Mumbai', email: 'staff-mumbai@example.com' },
-    { label: 'Driver — Mumbai', email: 'driver1-mumbai@example.com' },
-    { label: 'Manager — Delhi', email: 'manager-delhi@example.com' },
+    { label: 'Customer', email: 'customer1@example.com' },
+    { label: 'Manager (Mumbai)', email: 'manager-mumbai@example.com' },
+    { label: 'Manager (Delhi)', email: 'manager-delhi@example.com' },
+    { label: 'Staff (Mumbai)', email: 'staff-mumbai@example.com' },
+    { label: 'Staff (Delhi)', email: 'staff-delhi@example.com' },
+    { label: 'Local Driver (Mumbai)', email: 'driver1-mumbai@example.com' },
+    { label: 'Heavy Driver (Mumbai)', email: 'heavy-mumbai@example.com' },
+    { label: 'Local Driver (Delhi)', email: 'driver1-delhi@example.com' },
+    { label: 'Heavy Driver (Delhi)', email: 'heavy-delhi@example.com' },
   ];
 
   return (
